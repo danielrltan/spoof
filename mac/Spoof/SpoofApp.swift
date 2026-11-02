@@ -306,10 +306,6 @@ struct SetupCard: View {
                 Text(setup.detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
             Spacer()
-            if let action = setup.action {
-                Button(action.label) { NSWorkspace.shared.open(action.url) }
-                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
-            }
         }
         .glassCard()
     }

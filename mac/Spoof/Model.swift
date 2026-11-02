@@ -196,9 +196,9 @@ final class AppModel {
                 if issue != setup { setup = issue }
                 checkedPhone = true
             case .failure(let problem):
-                // devicectl hiccups now and then; only a repeat means something's wrong.
+                // A scan can fail once in a while; only a repeat means something's wrong.
                 scanFailures += 1
-                if case .xcodeNotReady = problem, scanFailures < 3 { break }
+                if scanFailures < 3 { break }
                 if problem != setup { setup = problem }
                 checkedPhone = true
             }

@@ -3,3 +3,4 @@ build/
 *.dmg
 xcuserdata/
 cli/spoof
+helper/build/

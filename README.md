@@ -15,7 +15,7 @@
   </a>
 </p>
 
-<p align="center"><sub>Free. Needs an Apple silicon Mac on macOS 26.6 or newer, an iPhone and a cable.</sub></p>
+<p align="center"><sub>Free. No Xcode needed. Needs an Apple silicon Mac on macOS 26, an iPhone on iOS 17.4 or newer and a cable.</sub></p>
 
 <p align="center">
   <picture>
@@ -26,11 +26,12 @@
 
 ## Set up once
 
-1. Install [Xcode](https://apps.apple.com/app/id497799835) (free, version 27 or newer) and open it once.
-2. Open `Spoof.dmg` and drag Spoof to Applications.
-3. Open Spoof. Your Mac blocks it the first time because it isn't notarized by Apple. Click **Done**, not Move to Trash. Then go to **System Settings > Privacy & Security** and click **Open Anyway**.
-4. Plug in your iPhone and tap **Trust**.
-5. On the iPhone, go to **Settings > Privacy & Security > Developer Mode**, turn it on and restart. If it isn't there, open Xcode with the iPhone plugged in and choose **Product > Destination > Manage Devices**.
+1. Open `Spoof.dmg` and drag Spoof to Applications.
+2. Open Spoof. Your Mac blocks it the first time because it isn't notarized by Apple. Click **Done**, not Move to Trash. Then go to **System Settings > Privacy & Security** and click **Open Anyway**.
+3. Plug in your iPhone, unlock it and tap **Trust**.
+4. On the iPhone, go to **Settings > Privacy & Security > Developer Mode**, turn it on and restart. If it isn't there, keep the iPhone plugged in with Spoof open and look again.
+
+Keep the iPhone unlocked the first time you use Spoof after each restart of the phone.
 
 ## Use it
 
@@ -44,14 +45,20 @@ To plan a longer trip, click **Start trip here** or **Add stop**, then choose ho
 
 ## Good to know
 - Driving routes and speed limits come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public [Valhalla](https://valhalla.github.io/valhalla/) server, so the start and end of each drive are sent there. Walking and cycling routes come from Apple Maps.
+- To talk to your iPhone, Spoof uses [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) and downloads Apple's developer disk image from a [community mirror](https://github.com/doronz88/DeveloperDiskImage). If your Mac has Xcode 27 or newer, Spoof uses Xcode's tools instead.
 
 ## Build it yourself
 
+Building Spoof needs Xcode 27, even though running it doesn't.
+
 ```sh
 brew install xcodegen
-cd mac && xcodegen generate && open Spoof.xcodeproj
+pip install dmgbuild
+scripts/release.sh
 ```
 
-`cli/spoof.swift` is a command-line version: `swiftc cli/spoof.swift -o spoof`, then `./spoof set "Paris"`.
+That builds `Spoof.dmg`, with the helper from `helper/` inside it.
 
-[MIT License](LICENSE)
+`cli/spoof.swift` is a command-line version that does need Xcode: `swiftc cli/spoof.swift -o spoof`, then `./spoof set "Paris"`.
+
+Spoof is under the [MIT License](LICENSE). The helper in `helper/` is a separate program under the [GPL-3.0](helper/LICENSE), because pymobiledevice3 is.
