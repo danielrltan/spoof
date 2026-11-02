@@ -1,8 +1,8 @@
 {
   "fill": {
     "linear-gradient": [
-      "display-p3:1.00000,0.37000,0.25000,1.00000",
-      "display-p3:0.88000,0.10000,0.48000,1.00000"
+      "display-p3:0.33000,0.49000,1.00000,1.00000",
+      "display-p3:0.17000,0.18000,0.84000,1.00000"
     ],
     "orientation": {
       "start": {
@@ -19,11 +19,6 @@
     {
       "layers": [
         {
-          "glass": false,
-          "image-name": "disguise.svg",
-          "name": "disguise"
-        },
-        {
           "glass": true,
           "image-name": "pin.svg",
           "name": "pin"
@@ -36,13 +31,23 @@
       "translucency": {
         "enabled": false,
         "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "poof.svg",
+          "name": "poof"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
       },
-      "position": {
-        "scale": 0.86,
-        "translation-in-points": [
-          0,
-          -34
-        ]
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
       }
     }
   ],
