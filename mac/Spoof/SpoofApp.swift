@@ -5,7 +5,7 @@ import SwiftUI
 struct SpoofApp: App {
     var body: some Scene {
         Window("Spoof", id: "main") {
-            ContentView().frame(minWidth: 900, minHeight: 600)
+            ContentView().frame(minWidth: 900, minHeight: 600).tint(.red)
         }
         .defaultSize(width: 1200, height: 780)
     }
@@ -33,38 +33,97 @@ struct ContentView: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { tl in
-            ZStack {
-                map(now: tl.date)
-                VStack(spacing: 0) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            searchBox
-                            if model.run != nil || !model.stops.isEmpty || model.start != nil {
-                                TripPanel(model: model, now: tl.date)
-                            }
-                        }
-                        .frame(width: 360)
-                        Spacer()
-                        phoneStatus(now: tl.date)
-                    }
-                    Spacer(minLength: 12)
-                    if let setup = model.setup, model.run == nil {
-                        SetupCard(setup: setup).padding(.bottom, model.selected != nil || model.error != nil ? 10 : 0)
-                    }
-                    if let run = model.run {
-                        RunHUD(model: model, run: run, now: tl.date)
-                    } else if model.selected != nil || model.error != nil {
-                        placeCard
-                    }
-                }
-                .padding(16)
+        NavigationSplitView {
+            sidebar.navigationSplitViewColumnWidth(min: 310, ideal: 350, max: 440)
+        } detail: {
+            ZStack(alignment: .bottom) {
+                TimelineView(.periodic(from: .now, by: 1)) { tl in map(now: tl.date) }
+                    .ignoresSafeArea()
+                    .backgroundExtensionEffect()
+                TimelineView(.periodic(from: .now, by: 1)) { tl in cards(now: tl.date) }
+                    .padding(20)
             }
+            .toolbar { toolbar }
+            .toolbar(removing: .title)
+            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        }
+        .searchable(text: $search.query, placement: .sidebar, prompt: "Search a place or paste lat, lon")
+        .searchFocused($searchFocused)
+        .onSubmit(of: .search) {
+            let q = search.query
+            Task { if let p = await search.place(for: q) { show(p); search.query = "" } }
         }
         .task { await model.watchPhone() }
         .task(id: planSignature) { await model.fetchRoutes(model.plannedLegs) }
         .onAppear {
             if let c = model.current { camera = .region(.init(center: c.coord, latitudinalMeters: 3000, longitudinalMeters: 3000)) }
+        }
+    }
+
+    @ViewBuilder private func cards(now: Date) -> some View {
+        VStack(spacing: 10) {
+            if let setup = model.setup, model.run == nil { SetupCard(setup: setup) }
+            if let run = model.run {
+                RunHUD(model: model, run: run, now: now)
+            } else if model.selected != nil || model.error != nil {
+                placeCard
+            }
+        }
+    }
+
+    // MARK: sidebar
+
+    @ViewBuilder private var sidebar: some View {
+        if search.query.isEmpty {
+            TimelineView(.periodic(from: .now, by: 1)) { tl in TripPanel(model: model, now: tl.date) }
+        } else {
+            List(search.results, id: \.self) { r in
+                Button {
+                    Task {
+                        if let p = await search.place(for: r) { show(p) }
+                        search.query = ""
+                        searchFocused = false
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(r.title)
+                        if !r.subtitle.isEmpty { Text(r.subtitle).font(.caption).foregroundStyle(.secondary) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .listStyle(.sidebar)
+        }
+    }
+
+    // MARK: toolbar
+
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarSpacer(.flexible, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) { phonePicker }
+        if model.current != nil || model.run != nil {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) { Task { await model.reset() } } label: {
+                    Label("Real GPS", systemImage: "location.slash").labelStyle(.titleAndIcon)
+                }
+                .disabled(model.phone == nil || model.busy)
+                .help("Stop faking and give the phone its real location back")
+            }
+            if model.run == nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { Task { await model.pin() } } label: {
+                        Label("Pin", systemImage: "mappin").labelStyle(.titleAndIcon)
+                    }
+                    .disabled(model.phone == nil || model.busy)
+                    .help("Send the faked spot again so the phone reports standing still there")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                TimelineView(.periodic(from: .now, by: 1)) { tl in resetTimer(now: tl.date) }
+            }
         }
     }
 
@@ -99,6 +158,8 @@ struct ContentView: View {
                 }
             }
             .mapControls { MapZoomStepper(); MapCompass(); MapScaleView() }
+            // Left on .automatic the map jumps to frame every new marker, so a click loses your place.
+            .onMapCameraChange { if camera == .automatic { camera = .region($0.region) } }
             .onTapGesture { pt in
                 searchFocused = false
                 guard let c = proxy.convert(pt, from: .local) else { return }
@@ -116,79 +177,7 @@ struct ContentView: View {
         withAnimation { camera = .region(.init(center: p.coord, latitudinalMeters: 2500, longitudinalMeters: 2500)) }
     }
 
-    // MARK: search
-
-    private var searchBox: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search a place or paste lat, lon", text: $search.query)
-                    .textFieldStyle(.plain)
-                    .focused($searchFocused)
-                    .onSubmit {
-                        let q = search.query
-                        Task { if let p = await search.place(for: q) { show(p); search.query = "" } }
-                    }
-                if !search.query.isEmpty {
-                    Button { search.query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-
-            if !search.results.isEmpty {
-                Divider()
-                ForEach(search.results, id: \.self) { r in
-                    Button {
-                        Task {
-                            if let p = await search.place(for: r) { show(p) }
-                            search.query = ""
-                            searchFocused = false
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(r.title).foregroundStyle(.primary)
-                            if !r.subtitle.isEmpty { Text(r.subtitle).font(.caption).foregroundStyle(.secondary) }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .panel()
-    }
-
     // MARK: phone + reset
-
-    private func phoneStatus(now: Date) -> some View {
-        HStack(spacing: 10) {
-            phonePicker
-            Divider().frame(height: 16)
-            Toggle("Cable-free trips", isOn: $model.cableFree)
-                .toggleStyle(.switch).controlSize(.small)
-                .disabled(model.run != nil)
-                .help("Each trip plays as one route at a steady speed, so you can unplug once it starts. No speed-limit changes or stays.")
-            if model.current != nil || model.run != nil {
-                Button(role: .destructive) { Task { await model.reset() } } label: {
-                    Label("Real GPS", systemImage: "location.slash")
-                }
-                .disabled(model.phone == nil || model.busy)
-                .help("Stop faking and give the phone its real location back")
-                if model.run == nil {
-                    Button { Task { await model.pin() } } label: { Label("Pin", systemImage: "mappin") }
-                        .disabled(model.phone == nil || model.busy)
-                        .help("Send the faked spot again so the phone reports standing still there")
-                }
-                resetTimer(now: now)
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 6, y: 2)
-    }
 
     private var phonePicker: some View {
         Menu {
@@ -200,13 +189,12 @@ struct ContentView: View {
             }
             if model.phones.isEmpty { Text("No iPhones found") }
         } label: {
-            HStack(spacing: 6) {
-                Circle().fill(model.phone == nil ? Color.secondary : .green).frame(width: 8, height: 8)
-                Text(phoneLabel)
-                if model.phone?.wired == false { Image(systemName: "wifi").foregroundStyle(.secondary) }
-            }
+            Label(phoneLabel, systemImage: model.phone == nil ? "iphone.slash" : model.phone?.wired == false ? "wifi" : "iphone")
+                .labelStyle(.titleAndIcon)
         }
-        .menuStyle(.borderlessButton).fixedSize()
+        .tint(nil as Color?)
+        // MapKit keeps the map light in dark mode, so this capsule is always on a light surface.
+        .colorScheme(.light)
         .disabled(model.run != nil)
         .help(model.run != nil ? "A trip is playing on this phone" : "Choose which iPhone to fake")
     }
@@ -245,7 +233,8 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "timer")
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .menuIndicator(.hidden)
+            .tint(nil as Color?)
             .help("Give the phone its real location back after a while")
         }
     }
@@ -279,29 +268,31 @@ struct ContentView: View {
                         Button { Task { await model.travel(pace) } } label: {
                             Label(pace.rawValue.capitalized, systemImage: pace.icon)
                         }
+                        .buttonStyle(.bordered)
+                        .tint(nil as Color?)
                         .disabled(model.phone == nil || model.phoneSpot(at: .now) == nil)
                         .help(model.phoneSpot(at: .now) == nil ? "Waiting for this Mac's location (allow Location for Spoof), or Teleport first" : "")
                     }
-                    Divider().frame(height: 18)
+                    Spacer(minLength: 0)
                     Button {
                         model.addStop(s)
                         model.selected = nil
                     } label: {
                         Label(model.tripStart == nil ? "Start trip here" : "Add stop", systemImage: "plus")
                     }
-                    Spacer()
+                    .buttonStyle(.bordered)
+                    .tint(nil as Color?)
                     if model.busy { ProgressView().controlSize(.small) }
                 }
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
                 .disabled(model.busy)
             }
             if let e = model.error {
                 Text(e).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
         }
-        .padding(14)
-        .frame(maxWidth: 640)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 8, y: 2)
+        .glassCard()
     }
 }
 
@@ -316,13 +307,11 @@ struct SetupCard: View {
             }
             Spacer()
             if let action = setup.action {
-                Button(action.label) { NSWorkspace.shared.open(action.url) }.buttonStyle(.borderedProminent)
+                Button(action.label) { NSWorkspace.shared.open(action.url) }
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
             }
         }
-        .padding(14)
-        .frame(maxWidth: 640)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 8, y: 2)
+        .glassCard()
     }
 }
 
@@ -337,51 +326,59 @@ struct TripPanel: View {
         let running = planRun != nil
         let legs = (planRun?.cableFree == false ? planRun?.legs : nil) ?? model.plannedLegs
         let activeLeg = planRun?.cableFree == false ? planRun?.state(at: now).leg : nil
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Trip").font(.headline)
-                Spacer()
-                if !running {
-                    Button("Clear") { model.stops = []; model.start = nil }.buttonStyle(.plain).foregroundStyle(.secondary)
+        let empty = model.run == nil && model.stops.isEmpty && model.start == nil
+        List {
+            if !empty {
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "flag.fill").foregroundStyle(.secondary).frame(width: 22)
+                        Text(planRun?.legs.first?.from.name ?? model.tripStart?.name ?? "Pick a start").lineLimit(1)
+                        Spacer()
+                        if !running {
+                            Menu {
+                                if model.current != nil { Button("Phone's spot") { model.start = nil } }
+                                if let s = model.selected { Button("Selected: \(s.name)") { model.start = s } }
+                            } label: { Image(systemName: "ellipsis.circle") }
+                                .menuStyle(.borderlessButton).fixedSize()
+                        }
+                    }
+                    ForEach(Array(model.stops.enumerated()), id: \.element.id) { i, stop in
+                        let leg = i < legs.count ? legs[i] : nil
+                        StopRow(model: model, id: stop.id, leg: leg, last: i == model.stops.count - 1,
+                                active: activeLeg == i, done: (activeLeg ?? -1) > i, running: running)
+                            .listRowSeparator(.hidden)
+                    }
+                    .onMove { model.stops.move(fromOffsets: $0, toOffset: $1) }
+                    .moveDisabled(running)
+                } header: {
+                    HStack {
+                        Text("Trip")
+                        Spacer()
+                        if !running {
+                            Button("Clear") { model.stops = []; model.start = nil }
+                                .buttonStyle(.plain).padding(.trailing, 10)
+                        }
+                    }
                 }
-            }
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 6)
-
-            HStack(spacing: 8) {
-                Image(systemName: "flag.fill").foregroundStyle(.secondary).frame(width: 22)
-                Text(planRun?.legs.first?.from.name ?? model.tripStart?.name ?? "Pick a start").lineLimit(1)
-                Spacer()
-                if !running {
-                    Menu {
-                        if model.current != nil { Button("Phone's spot") { model.start = nil } }
-                        if let s = model.selected { Button("Selected: \(s.name)") { model.start = s } }
-                    } label: { Image(systemName: "ellipsis.circle") }
-                        .menuStyle(.borderlessButton).fixedSize()
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-
-            List {
-                ForEach(Array(model.stops.enumerated()), id: \.element.id) { i, stop in
-                    let leg = i < legs.count ? legs[i] : nil
-                    StopRow(model: model, id: stop.id, leg: leg, last: i == model.stops.count - 1,
-                            active: activeLeg == i, done: (activeLeg ?? -1) > i, running: running)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                }
-                .onMove { model.stops.move(fromOffsets: $0, toOffset: $1) }
-                .moveDisabled(running)
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .frame(height: min(420, CGFloat(model.stops.count) * 112 + 4))
-
-            if !model.stops.isEmpty {
-                Divider().padding(.horizontal, 12)
-                footer(legs, running: running)
             }
         }
-        .panel()
+        .listStyle(.sidebar)
+        .overlay {
+            if empty { ContentUnavailableView("Click the map to pick a place", systemImage: "map") }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                if !model.stops.isEmpty {
+                    footer(legs, running: running)
+                    Divider().padding(.horizontal, 14)
+                }
+                Toggle("Cable-free trips", isOn: $model.cableFree)
+                    .toggleStyle(.switch).controlSize(.small)
+                    .disabled(model.run != nil)
+                    .help("Each trip plays as one route at a steady speed, so you can unplug once it starts. No speed-limit changes or stays.")
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+            }
+        }
     }
 
     @ViewBuilder
@@ -406,11 +403,11 @@ struct TripPanel: View {
             Spacer()
             if !running {
                 Button { Task { await model.startTrip() } } label: { Label("Start trip", systemImage: "play.fill") }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
                     .disabled(!ready || model.phone == nil)
             }
         }
-        .padding(12)
+        .padding(14)
     }
 }
 
@@ -556,22 +553,21 @@ struct RunHUD: View {
                 HStack {
                     if run.paused {
                         Button { model.resume() } label: { Label("Resume", systemImage: "play.fill") }
-                            .buttonStyle(.borderedProminent).disabled(model.phone == nil)
+                            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(model.phone == nil)
                     } else {
                         Button { Task { await model.pause() } } label: { Label("Pause", systemImage: "pause.fill") }
+                            .buttonStyle(.bordered).buttonBorderShape(.capsule)
                             .disabled(model.phone == nil || run.arrivedUnparked)
                     }
                     Button("End here") { Task { await model.endHere() } }
+                        .buttonStyle(.bordered).buttonBorderShape(.capsule)
                         .disabled(model.phone == nil || run.arrivedUnparked)
                     Spacer()
                     Text("Leg \(st.leg + 1) of \(run.legs.count)").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: 640)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 8, y: 2)
+        .glassCard()
     }
 }
 
@@ -587,7 +583,11 @@ struct PhoneDot: View {
 }
 
 extension View {
-    func panel() -> some View {
-        background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).shadow(radius: 6, y: 2)
+    /// The floating surface every card over the map shares. Controls inside stay standard:
+    /// Liquid Glass doesn't stack on itself.
+    func glassCard() -> some View {
+        padding(18)
+            .frame(maxWidth: 640)
+            .glassEffect(.regular, in: .rect(cornerRadius: 26))
     }
 }

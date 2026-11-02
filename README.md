@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="128" alt="Spoof icon">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/icon-dark.png">
+    <img src="assets/icon.png" width="128" alt="Spoof icon">
+  </picture>
 </p>
 
 <h1 align="center">Spoof</h1>
@@ -15,7 +18,10 @@
 <p align="center"><sub>Free. Needs an Apple silicon Mac on macOS 26.6 or newer, an iPhone and a cable.</sub></p>
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="Spoof planning a trip across Paris">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+    <img src="assets/screenshot.png" alt="Spoof planning a trip across Paris">
+  </picture>
 </p>
 
 ## Set up once
@@ -28,11 +34,11 @@
 
 ## Use it
 
-1. Search for a place or click the map.
+1. Search in the sidebar or click the map.
 2. Click **Teleport** to jump there, or **Walk**, **Bike** or **Drive** to travel there by road.
-3. Click **Real GPS** when you're done. Your phone can take a minute to find itself again.
+3. Click **Real GPS** at the top right when you're done. Your phone can take a minute to find itself again.
 
-You can unplug after a teleport and the location stays. Keep the phone plugged in during a trip, or turn on **Cable-free trips** first.
+You can unplug after a teleport and the location stays. Keep the phone plugged in during a trip, or turn on **Cable-free trips** at the bottom of the sidebar first.
 
 To plan a longer trip, click **Start trip here** or **Add stop**, then choose how you travel, how long each leg takes and how long you stay.
 
