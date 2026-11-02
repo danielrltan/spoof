@@ -26,8 +26,6 @@
 4. Plug in your iPhone and tap **Trust**.
 5. On the iPhone, go to **Settings > Privacy & Security > Developer Mode**, turn it on and restart. If it isn't there, open Xcode with the iPhone plugged in and choose **Product > Destination > Manage Devices**.
 
-Spoof tells you which step is missing.
-
 ## Use it
 
 1. Search for a place or click the map.
