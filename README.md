@@ -22,7 +22,7 @@
 
 1. Install [Xcode](https://apps.apple.com/app/id497799835) (free, version 27 or newer) and open it once.
 2. Open `Spoof.dmg` and drag Spoof to Applications.
-3. Open Spoof. Your Mac will block it because it isn't notarized. Click **Done**, then go to **System Settings > Privacy & Security** and click **Open Anyway**.
+3. Open Spoof. Your Mac blocks it the first time because it isn't notarized by Apple. Click **Done**, not Move to Trash. Then go to **System Settings > Privacy & Security** and click **Open Anyway**.
 4. Plug in your iPhone and tap **Trust**.
 5. On the iPhone, go to **Settings > Privacy & Security > Developer Mode**, turn it on and restart. If it isn't there, open Xcode with the iPhone plugged in and choose **Product > Destination > Manage Devices**.
 
