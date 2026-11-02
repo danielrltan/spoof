@@ -37,9 +37,6 @@ You can unplug after a teleport and the location stays. Keep the phone plugged i
 To plan a longer trip, click **Start trip here** or **Add stop**, then choose how you travel, how long each leg takes and how long you stay.
 
 ## Good to know
-
-- Use it on your own phone, and don't use it to mislead someone who relies on your location.
-- Apps can tell. iOS marks every location from Spoof as simulated.
 - Driving routes and speed limits come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public [Valhalla](https://valhalla.github.io/valhalla/) server, so the start and end of each drive are sent there. Walking and cycling routes come from Apple Maps.
 
 ## Build it yourself
